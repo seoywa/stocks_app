@@ -5,11 +5,19 @@ import FooterLink from "@/components/forms/FooterLink";
 import InputField from "@/components/forms/InputField";
 import SelectField from "@/components/forms/SelectField";
 import { Button } from "@/components/ui/button";
-import { INVESTMENT_GOALS, PREFERRED_INDUSTRIES, RISK_TOLERANCE_OPTIONS } from "@/lib/constants";
+import { signUpWithEmail } from "@/lib/actions/auth.actions";
+import {
+  INVESTMENT_GOALS,
+  PREFERRED_INDUSTRIES,
+  RISK_TOLERANCE_OPTIONS,
+} from "@/lib/constants";
+import { useRouter } from "next/navigation";
 import React from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 const SignUpPage = () => {
+  const router = useRouter()
   const {
     register,
     handleSubmit,
@@ -30,9 +38,16 @@ const SignUpPage = () => {
 
   const onSubmit = async (data: SignUpFormData) => {
     try {
-      console.log(data);
-    } catch (e) {
-      console.error(e);
+      const result = await signUpWithEmail(data);
+      if (result.success) router.push('/')
+
+    } catch (error) {
+      console.error(error);
+      toast.error('Sign up failed', 
+        {
+          description: error instanceof Error ? error.message : JSON.stringify(error)
+        }
+      )
     }
   };
 
@@ -42,7 +57,7 @@ const SignUpPage = () => {
 
       <form action="" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <InputField
-          name="fullname"
+          name="fullName"
           label="Full Name"
           placeholder="John Doe"
           register={register}
@@ -50,9 +65,10 @@ const SignUpPage = () => {
           validation={{ required: "Full name is required", minLength: 2 }}
         />
 
-<InputField
+        <InputField
           name="email"
           label="Email"
+          type="email"
           placeholder="johndoe@hotmail.com"
           register={register}
           error={errors.email}
@@ -68,7 +84,7 @@ const SignUpPage = () => {
           validation={{ required: "Password is required", minLength: 6 }}
         />
 
-        <CountrySelectField 
+        <CountrySelectField
           name="country"
           label="Country"
           control={control}
@@ -76,33 +92,35 @@ const SignUpPage = () => {
           required
         />
 
-        <SelectField 
-          name='InvestmentGoals' 
+        <SelectField
+          name="InvestmentGoals"
           label="Investment Goals"
           placeholder="Select your investment goal"
           options={INVESTMENT_GOALS}
           control={control}
-          error={errors.investmentGoals} required
+          error={errors.investmentGoals}
+          required
         />
 
-        <SelectField 
-          name='riskTolerance' 
+        <SelectField
+          name="riskTolerance"
           label="Risk Tolerance"
           placeholder="Select your risk level"
           options={RISK_TOLERANCE_OPTIONS}
           control={control}
-          error={errors.riskTolerance} required
+          error={errors.riskTolerance}
+          required
         />
 
-        <SelectField 
-          name='preferredIndustry' 
+        <SelectField
+          name="preferredIndustry"
           label="Preferred Industry"
           placeholder="Select your preferred industry"
           options={PREFERRED_INDUSTRIES}
           control={control}
-          error={errors.preferredIndustry} required
+          error={errors.preferredIndustry}
+          required
         />
-        
 
         <Button
           type="submit"
@@ -112,7 +130,11 @@ const SignUpPage = () => {
           {isSubmitting ? "Creating Account" : "Start Your Investing Journey"}
         </Button>
 
-        <FooterLink text="Already have an account?" linkText="Sign in" href="/sign-in" />
+        <FooterLink
+          text="Already have an account?"
+          linkText="Sign in"
+          href="/sign-in"
+        />
       </form>
     </>
   );
