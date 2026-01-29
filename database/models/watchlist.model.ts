@@ -30,7 +30,7 @@ const watchlistSchema = new Schema<WatchlistItem>(
       default: () => new Date(),
     },
   },
-  { timestamps: false }
+  { timestamps: false, collection: 'watchlist' }
 );
 
 // Compound index to prevent duplicate stocks per user

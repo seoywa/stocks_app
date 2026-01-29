@@ -1,6 +1,8 @@
 'use server';
 
+import { cache } from 'react';
 import { getDateRange } from '@/lib/utils';
+import { POPULAR_STOCK_SYMBOLS } from '@/lib/constants';
 
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
@@ -173,3 +175,83 @@ export const getNews = async (symbols?: string[]): Promise<FormattedArticle[]> =
     throw new Error('Failed to fetch news');
   }
 };
+
+interface FinnhubProfile {
+  symbol?: string;
+  name?: string;
+  exchange?: string;
+  marketCapitalization?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+export const searchStocks = cache(
+  async (query?: string): Promise<StockWithWatchlistStatus[]> => {
+    try {
+      if (!FINNHUB_API_KEY) {
+        throw new Error('FINNHUB_API_KEY is not configured');
+      }
+
+      let searchResults: FinnhubSearchResult[] = [];
+
+      // No query: fetch popular stocks
+      if (!query || query.trim().length === 0) {
+        const topSymbols = POPULAR_STOCK_SYMBOLS.slice(0, 10);
+        const profiles: FinnhubSearchResult[] = [];
+
+        for (const symbol of topSymbols) {
+          try {
+            const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const profile = (await fetchJSON(url, 3600)) as any;
+
+            if (profile && typeof profile === 'object') {
+              const profileData = profile as FinnhubProfile;
+              profiles.push({
+                symbol: profileData.symbol || symbol,
+                description: profileData.name || symbol,
+                displaySymbol: profileData.symbol || symbol,
+                type: 'Common Stock',
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching profile for ${symbol}:`, error);
+            continue;
+          }
+        }
+
+        searchResults = profiles;
+      } else {
+        // Query provided: search endpoint
+        const trimmedQuery = query.trim();
+        const url = `${FINNHUB_BASE_URL}/search?q=${encodeURIComponent(trimmedQuery)}&token=${FINNHUB_API_KEY}`;
+
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const response = (await fetchJSON(url, 1800)) as any;
+          searchResults = Array.isArray(response?.result) ? response.result : [];
+        } catch (error) {
+          console.error('Error searching stocks:', error);
+          return [];
+        }
+      }
+
+      // Map to StockWithWatchlistStatus and limit to 15
+      const results: StockWithWatchlistStatus[] = searchResults
+        .slice(0, 15)
+        .map((result) => ({
+          symbol: (result.symbol || '').toUpperCase(),
+          name: result.description || result.displaySymbol || 'Unknown',
+          exchange: result.displaySymbol || 'US',
+          type: result.type || 'Stock',
+          isInWatchlist: false,
+        }));
+
+      return results;
+    } catch (error) {
+      console.error('error in stock search: ', error);
+      return [];
+    }
+  },
+);
+ 
