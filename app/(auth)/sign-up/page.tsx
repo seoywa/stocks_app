@@ -39,7 +39,10 @@ const SignUpPage = () => {
   const onSubmit = async (data: SignUpFormData) => {
     try {
       const result = await signUpWithEmail(data);
-      if (result.success) router.push('/')
+      if (result.success) {
+        router.refresh();
+        router.push('/');
+      }
 
     } catch (error) {
       console.error(error);

@@ -28,7 +28,10 @@ const SignInPage = () => {
     try {
       
       const result = await signInWithEmail(data);
-      if (result.success) router.push('/')
+      if (result.success) {
+        router.refresh();
+        router.push('/');
+      }
         
     } catch (e) {
       console.error(e);
