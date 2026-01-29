@@ -31,7 +31,7 @@ export default async function Watchlist() {
 
       {watchlist.length > 0 ? (
         <div className="rounded-lg ">
-          <WatchlistTable />
+          <WatchlistTable data={watchlist} />
         </div>
       ) : (
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">

@@ -5,6 +5,81 @@ import Watchlist from '@/database/models/watchlist.model';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/better-auth/auth';
 
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
+
+interface FinnhubQuote {
+  c?: number; // current price
+  dp?: number; // percent change
+  marketCapitalization?: number;
+}
+
+interface FinnhubProfile {
+  name?: string;
+  pe?: number;
+  marketCapitalization?: number;
+}
+
+const fetchStockQuote = async (symbol: string): Promise<FinnhubQuote | null> => {
+  try {
+    if (!FINNHUB_API_KEY) return null;
+    
+    const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+    const response = await fetch(url, {
+      cache: 'force-cache',
+      next: { revalidate: 300 }, // 5 minutes
+    });
+
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error(`Error fetching quote for ${symbol}:`, error);
+    return null;
+  }
+};
+
+const fetchStockProfile = async (symbol: string): Promise<FinnhubProfile | null> => {
+  try {
+    if (!FINNHUB_API_KEY) return null;
+
+    const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+    const response = await fetch(url, {
+      cache: 'force-cache',
+      next: { revalidate: 3600 }, // 1 hour
+    });
+
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error(`Error fetching profile for ${symbol}:`, error);
+    return null;
+  }
+};
+
+const formatPrice = (price?: number): string => {
+  if (price === undefined || price === null) return '—';
+  return `$${price.toFixed(2)}`;
+};
+
+const formatChange = (change?: number): string => {
+  if (change === undefined || change === null) return '—';
+  const sign = change >= 0 ? '+' : '';
+  return `${sign}${change.toFixed(2)}%`;
+};
+
+const formatMarketCap = (cap?: number): string => {
+  if (cap === undefined || cap === null) return '—';
+  if (cap >= 1e12) return `$${(cap / 1e12).toFixed(2)}T`;
+  if (cap >= 1e9) return `$${(cap / 1e9).toFixed(2)}B`;
+  if (cap >= 1e6) return `$${(cap / 1e6).toFixed(2)}M`;
+  return `$${cap.toFixed(0)}`;
+};
+
+const formatPERatio = (pe?: number): string => {
+  if (pe === undefined || pe === null) return '—';
+  return pe.toFixed(2);
+};
+
 export const getWatchlistSymbolsByEmail = async (email: string): Promise<string[]> => {
   try {
     await connectToDatabase();
@@ -91,19 +166,28 @@ export const getWatchlistByEmail = async (email: string): Promise<StockWithData[
       return [];
     }
 
-    // Map to StockWithData (without live data for now)
-    return watchlistItems.map((item) => ({
-      userId: item.userId || '',
-      symbol: item.symbol || '',
-      company: item.company || '',
-      addedAt: item.addedAt || new Date(),
-      currentPrice: undefined,
-      changePercent: undefined,
-      priceFormatted: '—',
-      changeFormatted: '—',
-      marketCap: '—',
-      peRatio: '—',
-    }));
+    // Fetch stock data for each item in parallel
+    const stockDataPromises = watchlistItems.map(async (item) => {
+      const [quote, profile] = await Promise.all([
+        fetchStockQuote(item.symbol || ''),
+        fetchStockProfile(item.symbol || ''),
+      ]);
+
+      return {
+        userId: item.userId || '',
+        symbol: item.symbol || '',
+        company: item.company || '',
+        addedAt: item.addedAt || new Date(),
+        currentPrice: quote?.c,
+        changePercent: quote?.dp,
+        priceFormatted: formatPrice(quote?.c),
+        changeFormatted: formatChange(quote?.dp),
+        marketCap: formatMarketCap(quote?.marketCapitalization || profile?.marketCapitalization),
+        peRatio: formatPERatio(profile?.pe),
+      };
+    });
+
+    return Promise.all(stockDataPromises);
   } catch (error) {
     console.error('Error fetching watchlist:', error);
     return [];

@@ -9,10 +9,21 @@ const useTradingViewWidget = (scriptUrl: string, config: Record<string, unknown>
         if (containerRef.current.dataset.loaded) return;
         containerRef.current.innerHTML = `<div class="tradingview-widget-container__widget" style="width: 100%; height: ${height}px;"></div>`;
 
+        // Create a config script first
+        const configScript = document.createElement("script");
+        configScript.type = "text/javascript";
+        configScript.innerHTML = `window.tradingviewConfig = ${JSON.stringify(config)};`;
+        containerRef.current.appendChild(configScript);
+
+        // Then create and append the widget script
         const script = document.createElement("script");
         script.src = scriptUrl;
         script.async = true;
-        script.innerHTML = JSON.stringify(config);
+        script.type = "text/javascript";
+
+        script.onerror = () => {
+            console.error(`Failed to load TradingView widget from ${scriptUrl}`);
+        };
 
         containerRef.current.appendChild(script);
         containerRef.current.dataset.loaded = 'true';
